@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home | ShopEase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container">
+  <section class="hero">
+    <h1>Shop smarter with ShopEase</h1>
+    <p>Electronics, fashion, books and more, delivered to your door.</p>
+    <form class="search" id="searchForm">
+      <input id="q" placeholder="Search products…">
+      <button class="btn" style="background:#111827">Search</button>
+    </form>
+  </section>
+
+  <div class="toolbar">
+    <div id="cats" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    <select id="sort">
+      <option value="newest">Newest</option>
+      <option value="priceAsc">Price: Low to High</option>
+      <option value="priceDesc">Price: High to Low</option>
+      <option value="name">Name A–Z</option>
+    </select>
+  </div>
+  <p class="muted" id="count" style="margin-bottom:12px"></p>
+  <div class="grid" id="grid"></div>
+</main>
+<script src="js/api.js"></script>
+<script>
+  renderNav();
+  let categoryId = param('category') || '';
+  document.getElementById('q').value = param('q') || '';
+
+  async function loadCategories() {
+    const cats = await api('/categories');
+    const chip = (id, name) => `<button class="chip ${String(categoryId) === String(id) ? 'active' : ''}" data-id="${id}">${esc(name)}</button>`;
+    const box = document.getElementById('cats');
+    box.innerHTML = chip('', 'All') + cats.map(c => chip(c.id, c.name)).join('');
+    box.querySelectorAll('.chip').forEach(b => b.onclick = () => { categoryId = b.dataset.id; loadCategories(); loadProducts(); });
+  }
+
+  async function loadProducts() {
+    const qs = new URLSearchParams({ sort: document.getElementById('sort').value });
+    const q = document.getElementById('q').value.trim();
+    if (q) qs.set('q', q);
+    if (categoryId) qs.set('categoryId', categoryId);
+    const grid = document.getElementById('grid');
+    try {
+      const list = await api('/products?' + qs);
+      document.getElementById('count').textContent = list.length + ' product' + (list.length === 1 ? '' : 's');
+      grid.innerHTML = list.length ? list.map(p => `
+        <div class="product">
+          <a href="product.html?id=${p.id}">${productImg(p)}</a>
+          <div class="body">
+            <span class="cat">${esc(p.category ? p.category.name : 'General')}</span>
+            <a class="name" href="product.html?id=${p.id}">${esc(p.name)}</a>
+            ${stockLabel(p.stock)}
+            <div class="row">
+              <span class="price">${money(p.price)}</span>
+              <button class="btn small" ${p.stock <= 0 ? 'disabled' : ''} onclick="addToCart(${p.id})">Add to cart</button>
+            </div>
+          </div>
+        </div>`).join('') : '<div class="empty" style="grid-column:1/-1">No products found.</div>';
+    } catch (e) { grid.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
+  document.getElementById('searchForm').onsubmit = e => { e.preventDefault(); loadProducts(); };
+  document.getElementById('sort').onchange = loadProducts;
+  loadCategories(); loadProducts();
+</script>
+</body>
+</html>

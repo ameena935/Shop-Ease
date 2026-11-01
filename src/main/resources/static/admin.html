@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin | ShopEase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container">
+  <h1>Admin Dashboard</h1>
+  <div class="tabs">
+    <button class="tab active" data-tab="dash">Dashboard</button>
+    <button class="tab" data-tab="products">Products</button>
+    <button class="tab" data-tab="categories">Categories</button>
+    <button class="tab" data-tab="orders">Orders</button>
+    <button class="tab" data-tab="users">Users</button>
+  </div>
+
+  <section id="dash"><div class="stats" id="stats"></div></section>
+
+  <section id="products" hidden>
+    <form class="card" id="pform" style="margin-bottom:18px">
+      <h2 id="pformTitle">Add Product</h2>
+      <input type="hidden" id="pid">
+      <div class="form-grid">
+        <div><label>Name</label><input id="pname" required></div>
+        <div><label>Category</label><select id="pcat"></select></div>
+        <div><label>Price (₹)</label><input id="pprice" type="number" min="0" step="0.01" required></div>
+        <div><label>Stock</label><input id="pstock" type="number" min="0" required></div>
+        <div class="full"><label>Image URL</label><input id="pimg" placeholder="https://…"></div>
+        <div class="full"><label>Description</label><textarea id="pdesc" rows="3"></textarea></div>
+      </div>
+      <div class="mt" style="display:flex;gap:10px">
+        <button class="btn">Save Product</button>
+        <button type="button" class="btn outline" onclick="resetForm()">Clear</button>
+      </div>
+    </form>
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Actions</th></tr></thead>
+      <tbody id="ptable"></tbody>
+    </table></div>
+  </section>
+
+  <section id="categories" hidden>
+    <form class="card" id="cform" style="margin-bottom:18px;display:flex;gap:10px;align-items:end">
+      <div style="flex:1"><label>New category name</label><input id="cname" required></div>
+      <button class="btn">Add</button>
+    </form>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>Name</th><th>Actions</th></tr></thead>
+      <tbody id="ctable"></tbody>
+    </table></div>
+  </section>
+
+  <section id="orders" hidden>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Customer</th><th>Items</th><th>Total</th><th>Date</th><th>Status</th></tr></thead>
+      <tbody id="otable"></tbody>
+    </table></div>
+  </section>
+
+  <section id="users" hidden>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th></tr></thead>
+      <tbody id="utable"></tbody>
+    </table></div>
+  </section>
+</main>
+<script src="js/api.js"></script>
+<script>
+  renderNav();
+  const $ = id => document.getElementById(id);
+  let categories = [], products = [];
+
+  document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+    document.querySelectorAll('main section').forEach(s => s.hidden = s.id !== t.dataset.tab);
+    loaders[t.dataset.tab]();
+  });
+
+  const loaders = {
+    async dash() {
+      const s = await api('/admin/stats');
+      const card = (n, l) => `<div class="card stat"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+      $('stats').innerHTML = card(money(s.revenue), 'Revenue') + card(s.orders, 'Total orders') + card(s.pending, 'Pending orders')
+        + card(s.products, 'Products') + card(s.lowStock, 'Low stock (&lt;10)') + card(s.users, 'Users');
+    },
+    async products() {
+      [categories, products] = await Promise.all([api('/categories'), api('/products')]);
+      $('pcat').innerHTML = '<option value="">— None —</option>' + categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+      $('ptable').innerHTML = products.map(p => `<tr>
+        <td>${productImg(p)}</td><td>${esc(p.name)}</td><td>${esc(p.category ? p.category.name : '-')}</td>
+        <td>${money(p.price)}</td><td>${p.stock < 10 ? `<span class="stock low">${p.stock}</span>` : p.stock}</td>
+        <td><button class="btn small outline" onclick="editProduct(${p.id})">Edit</button>
+            <button class="btn small danger" onclick="deleteProduct(${p.id})">Delete</button></td></tr>`).join('');
+    },
+    async categories() {
+      categories = await api('/categories');
+      $('ctable').innerHTML = categories.map(c => `<tr><td>${c.id}</td><td>${esc(c.name)}</td>
+        <td><button class="btn small danger" onclick="deleteCategory(${c.id})">Delete</button></td></tr>`).join('');
+    },
+    async orders() {
+      const list = await api('/admin/orders');
+      const opts = ['PLACED', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+      $('otable').innerHTML = list.length ? list.map(o => `<tr>
+        <td>${o.id}</td>
+        <td>${esc(o.customerName)}<div class="muted" style="font-size:.8rem">${esc(o.customerEmail)} · ${esc(o.phone)}</div></td>
+        <td>${o.items.map(i => esc(i.productName) + ' × ' + i.quantity).join('<br>')}</td>
+        <td>${money(o.total)}</td>
+        <td>${new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
+        <td><select onchange="setStatus(${o.id}, this.value)" style="width:auto">
+          ${opts.map(s => `<option ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('')
+        : '<tr><td colspan="6" class="center muted">No orders yet</td></tr>';
+    },
+    async users() {
+      const list = await api('/admin/users');
+      $('utable').innerHTML = list.map(u => `<tr><td>${u.id}</td><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${u.role}</td></tr>`).join('');
+    }
+  };
+
+  function resetForm() { $('pform').reset(); $('pid').value = ''; $('pformTitle').textContent = 'Add Product'; }
+
+  function editProduct(id) {
+    const p = products.find(x => x.id === id);
+    $('pid').value = p.id; $('pname').value = p.name; $('pprice').value = p.price; $('pstock').value = p.stock;
+    $('pimg').value = p.imageUrl || ''; $('pdesc').value = p.description || ''; $('pcat').value = p.category ? p.category.id : '';
+    $('pformTitle').textContent = 'Edit Product #' + p.id;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  $('pform').onsubmit = async e => {
+    e.preventDefault();
+    const body = { name: $('pname').value, description: $('pdesc').value, price: +$('pprice').value,
+      stock: +$('pstock').value, imageUrl: $('pimg').value, categoryId: $('pcat').value ? +$('pcat').value : null };
+    const id = $('pid').value;
+    try {
+      await api(id ? '/admin/products/' + id : '/admin/products', { method: id ? 'PUT' : 'POST', body });
+      toast(id ? 'Product updated' : 'Product added', 'success'); resetForm(); loaders.products();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
+  async function deleteProduct(id) {
+    try { await api('/admin/products/' + id, { method: 'DELETE' }); toast('Product deleted'); loaders.products(); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+
+  $('cform').onsubmit = async e => {
+    e.preventDefault();
+    try { await api('/admin/categories', { method: 'POST', body: { name: $('cname').value } });
+      $('cname').value = ''; toast('Category added', 'success'); loaders.categories(); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+
+  async function deleteCategory(id) {
+    try { await api('/admin/categories/' + id, { method: 'DELETE' }); toast('Category deleted'); loaders.categories(); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+
+  async function setStatus(id, status) {
+    try { await api('/admin/orders/' + id + '/status', { method: 'PUT', body: { status } }); toast('Status updated', 'success'); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+
+  if (requireAdmin()) loaders.dash().catch(e => toast(e.message, 'error'));
+</script>
+</body>
+</html>

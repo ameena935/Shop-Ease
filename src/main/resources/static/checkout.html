@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout | ShopEase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container">
+  <h1>Checkout</h1>
+  <div class="layout">
+    <form class="card" id="form">
+      <h2>Shipping Details</h2>
+      <label>Full name</label><input id="cname" disabled>
+      <label>Delivery address</label><textarea id="address" rows="3" required placeholder="House no, street, city, state, PIN"></textarea>
+      <label>Phone number</label><input id="phone" required pattern="\d{10}" maxlength="10" placeholder="10-digit mobile number">
+      <h2 class="mt" style="margin-top:22px">Payment Method</h2>
+      <div class="pay-options">
+        <label><input type="radio" name="pay" value="Cash on Delivery" checked> Cash on Delivery</label>
+        <label><input type="radio" name="pay" value="UPI"> UPI</label>
+        <label><input type="radio" name="pay" value="Card"> Credit / Debit Card</label>
+      </div>
+      <button class="btn block mt" id="placeBtn">Place Order</button>
+    </form>
+    <div class="card summary" id="summary"></div>
+  </div>
+</main>
+<script src="js/api.js"></script>
+<script>
+  renderNav();
+  const $ = id => document.getElementById(id);
+  if (requireLogin()) load();
+
+  async function load() {
+    $('cname').value = currentUser().name;
+    const items = await api('/cart');
+    if (!items.length) { location.href = 'cart.html'; return; }
+    const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
+    $('summary').innerHTML = `<h2>Your Order</h2>
+      ${items.map(i => `<div class="line"><span>${esc(i.product.name)} × ${i.quantity}</span><span>${money(i.product.price * i.quantity)}</span></div>`).join('')}
+      <div class="line total"><span>Total</span><span>${money(subtotal)}</span></div>
+      <p class="muted" style="font-size:.8rem">Free shipping. Demo payment: no money is charged.</p>`;
+  }
+
+  $('form').onsubmit = async e => {
+    e.preventDefault();
+    $('placeBtn').disabled = true;
+    try {
+      const order = await api('/orders', { method: 'POST', body: {
+        address: $('address').value, phone: $('phone').value,
+        paymentMethod: document.querySelector('input[name=pay]:checked').value } });
+      location.href = 'orders.html?placed=' + order.id;
+    } catch (err) { toast(err.message, 'error'); $('placeBtn').disabled = false; }
+  };
+</script>
+</body>
+</html>

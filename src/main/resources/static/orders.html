@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Orders | ShopEase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container">
+  <h1>My Orders</h1>
+  <div id="msg"></div>
+  <div id="list"></div>
+</main>
+<script src="js/api.js"></script>
+<script>
+  renderNav();
+  if (param('placed')) document.getElementById('msg').innerHTML =
+    `<div class="card" style="background:#dcfce7;margin-bottom:16px">🎉 Order #${esc(param('placed'))} placed successfully!</div>`;
+  if (requireLogin()) load();
+
+  async function load() {
+    const orders = await api('/orders');
+    const box = document.getElementById('list');
+    if (!orders.length) { box.innerHTML = '<div class="card empty">No orders yet. <a href="index.html">Shop now</a></div>'; return; }
+    box.innerHTML = orders.map(o => `
+      <div class="card order">
+        <div class="order-head">
+          <div><strong>Order #${o.id}</strong> <span class="status ${o.status}">${o.status}</span>
+            <div class="muted" style="font-size:.85rem">${new Date(o.createdAt).toLocaleString('en-IN')} · ${esc(o.paymentMethod)}</div></div>
+          <div class="price">${money(o.total)}</div>
+        </div>
+        <div class="order-items">
+          ${o.items.map(i => `<div><span>${esc(i.productName)} × ${i.quantity}</span><span>${money(i.price * i.quantity)}</span></div>`).join('')}
+        </div>
+        <p class="muted mt" style="font-size:.85rem">Deliver to: ${esc(o.address)} · ${esc(o.phone)}</p>
+        ${o.status === 'PLACED' ? `<button class="btn small danger mt" onclick="cancelOrder(${o.id})">Cancel order</button>` : ''}
+      </div>`).join('');
+  }
+
+  async function cancelOrder(id) {
+    try { await api('/orders/' + id + '/cancel', { method: 'PUT' }); toast('Order cancelled'); load(); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register | ShopEase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container">
+  <div class="card auth">
+    <h1 class="center">Create account</h1>
+    <form id="form">
+      <label>Full name</label><input id="name" required>
+      <label>Email</label><input id="email" type="email" required>
+      <label>Password</label><input id="password" type="password" minlength="6" required>
+      <label>Confirm password</label><input id="confirm" type="password" required>
+      <button class="btn block mt">Register</button>
+    </form>
+    <p class="center mt muted">Already have an account? <a href="login.html">Login</a></p>
+  </div>
+</main>
+<script src="js/api.js"></script>
+<script>
+  renderNav();
+  const $ = id => document.getElementById(id);
+  $('form').onsubmit = async e => {
+    e.preventDefault();
+    if ($('password').value !== $('confirm').value) return toast('Passwords do not match', 'error');
+    try {
+      const data = await api('/auth/register', { method: 'POST', body: { name: $('name').value, email: $('email').value, password: $('password').value } });
+      saveSession(data);
+      location.href = 'index.html';
+    } catch (err) { toast(err.message, 'error'); }
+  };
+</script>
+</body>
+</html>

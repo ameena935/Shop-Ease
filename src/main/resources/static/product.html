@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product | ShopEase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container">
+  <p class="mt" style="margin:0 0 16px"><a href="index.html">← Back to shop</a></p>
+  <div id="detail" class="card"></div>
+  <h2 class="mt" style="margin-top:32px">You may also like</h2>
+  <div class="grid" id="related"></div>
+</main>
+<script src="js/api.js"></script>
+<script>
+  renderNav();
+  const id = param('id');
+
+  function changeQty(d) {
+    const el = document.getElementById('qty');
+    el.value = Math.max(1, Math.min(+el.max, (+el.value || 1) + d));
+  }
+
+  async function load() {
+    const box = document.getElementById('detail');
+    try {
+      const p = await api('/products/' + id);
+      document.title = p.name + ' | ShopEase';
+      box.innerHTML = `
+        <div class="detail">
+          <div>${productImg(p)}</div>
+          <div>
+            <span class="cat muted">${esc(p.category ? p.category.name : 'General')}</span>
+            <h1 style="margin:6px 0">${esc(p.name)}</h1>
+            <p class="price" style="font-size:1.6rem">${money(p.price)}</p>
+            <p class="mt">${stockLabel(p.stock)}</p>
+            <p class="mt muted">${esc(p.description || 'No description available.')}</p>
+            ${p.stock > 0 ? `
+            <label>Quantity</label>
+            <div class="qty">
+              <button onclick="changeQty(-1)">−</button>
+              <input id="qty" type="number" value="1" min="1" max="${p.stock}">
+              <button onclick="changeQty(1)">+</button>
+            </div>
+            <div class="mt" style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn" onclick="addToCart(${p.id}, +document.getElementById('qty').value)">Add to cart</button>
+              <button class="btn outline" onclick="buyNow(${p.id})">Buy now</button>
+            </div>` : ''}
+          </div>
+        </div>`;
+      if (p.category) loadRelated(p.category.id, p.id);
+    } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
+  async function buyNow(pid) {
+    if (!requireLogin()) return;
+    try {
+      await api('/cart', { method: 'POST', body: { productId: pid, quantity: +document.getElementById('qty').value } });
+      location.href = 'checkout.html';
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  async function loadRelated(catId, selfId) {
+    const list = (await api('/products?categoryId=' + catId)).filter(p => p.id !== selfId).slice(0, 4);
+    document.getElementById('related').innerHTML = list.length ? list.map(p => `
+      <div class="product"><a href="product.html?id=${p.id}">${productImg(p)}</a>
+        <div class="body"><a class="name" href="product.html?id=${p.id}">${esc(p.name)}</a>
+        <span class="price">${money(p.price)}</span></div></div>`).join('') : '<p class="muted">No related products.</p>';
+  }
+  load();
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | ShopEase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main class="container">
+  <div class="card auth">
+    <h1 class="center">Welcome back</h1>
+    <form id="form">
+      <label>Email</label><input id="email" type="email" required>
+      <label>Password</label><input id="password" type="password" required>
+      <button class="btn block mt">Login</button>
+    </form>
+    <p class="center mt muted">New here? <a href="register.html">Create an account</a></p>
+    <p class="center mt muted" style="font-size:.85rem">Demo: user@shop.com / user123 · Admin: admin@shop.com / admin123</p>
+  </div>
+</main>
+<script src="js/api.js"></script>
+<script>
+  renderNav();
+  const $ = id => document.getElementById(id);
+  $('form').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const data = await api('/auth/login', { method: 'POST', body: { email: $('email').value, password: $('password').value } });
+      saveSession(data);
+      location.href = param('next') || (data.user.role === 'ADMIN' ? 'admin.html' : 'index.html');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+</script>
+</body>
+</html>
